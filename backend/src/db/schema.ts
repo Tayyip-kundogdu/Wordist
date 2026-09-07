@@ -63,7 +63,7 @@ export const wordsRelations = relations(words, ({ one, many }) => ({
     fields: [words.userId],
     references: [users.id],
   }),
-  states: many(userWordStates),
+  userStates: many(userWordStates),
 }));
 
 export const userWordStatesRelations = relations(userWordStates, ({ one }) => ({
