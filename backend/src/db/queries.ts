@@ -57,7 +57,9 @@ export const getWordById = async (id: string) => {
   });
 };
 
-export const updateWord = async (id: string, data: Partial<NewWord>) => {
+type WordUpdate = Partial<Pick<NewWord, "word" | "translation" | "sentence">>;
+
+export const updateWord = async (id: string, data: WordUpdate) => {
   const [updatedWord] = await db
     .update(words)
     .set(data)
@@ -90,7 +92,6 @@ export const deleteWord = async (id: string) => {
  * Kullanıcı için rastgele henüz ezberlenmemiş (is_learned = false veya durumu hiç olmayan) tek bir kelime getirir.
  */
 export const getRandomUnlearnedWord = async (userId: string) => {
-  // 1. Kullanıcının zaten ezberlediği kelimelerin ID'lerini alıyoruz
   const learnedStates = await db
     .select({ wordId: userWordStates.wordId })
     .from(userWordStates)
@@ -103,16 +104,16 @@ export const getRandomUnlearnedWord = async (userId: string) => {
 
   const learnedWordIds = learnedStates.map((s) => s.wordId);
 
-  // 2. Ezberlenen ID'ler dışındaki kelimelerden rastgele 1 tane seçiyoruz
-  const whereClause =
-    learnedWordIds.length > 0
-      ? notInArray(words.id, learnedWordIds)
-      : undefined;
+  // Hem ezberlenmemiş olma hem de kelimenin O KULLANICIYA ait olma şartı:
+  const conditions = [eq(words.userId, userId)];
+  if (learnedWordIds.length > 0) {
+    conditions.push(notInArray(words.id, learnedWordIds));
+  }
 
   const [randomWord] = await db
     .select()
     .from(words)
-    .where(whereClause)
+    .where(and(...conditions))
     .orderBy(sql`RANDOM()`)
     .limit(1);
 
@@ -127,6 +128,15 @@ export const markWordState = async (
   wordId: string,
   isLearned: boolean
 ) => {
+  // Kelimenin gerçekten bu kullanıcıya ait olduğunu doğruluyoruz
+  const word = await db.query.words.findFirst({
+    where: and(eq(words.id, wordId), eq(words.userId, userId)),
+  });
+
+  if (!word) {
+    throw new Error("Word not found or unauthorized");
+  }
+
   const [state] = await db
     .insert(userWordStates)
     .values({
@@ -152,6 +162,7 @@ export const markWordState = async (
  */
 export const getUserWordsWithState = async (userId: string) => {
   return db.query.words.findMany({
+    where: eq(words.userId, userId), // Sadece bu kullanıcının kelimelerini getir
     with: {
       userStates: {
         where: eq(userWordStates.userId, userId),
