@@ -9,7 +9,11 @@ export async function syncUser(req: Request, res: Response) {
 
     const { email, name, imageUrl } = req.body;
 
-    if (!email || !name || !imageUrl) {
+    if (
+      typeof email !== "string" || !email ||
+      typeof name !== "string" || !name ||
+      typeof imageUrl !== "string" || !imageUrl
+    ) {
       return res.status(400).json({ error: "Email, name, and imageUrl are required" });
     }
 
